@@ -6,13 +6,17 @@ import {
   completarTarea,
   filtrarTareas
 } from '../controllers/tareasController'
+import { verificarToken } from '../middleware/auth'
 
 const router = Router()
 
+// Rutas públicas
 router.get('/', (req: Request, res: Response) => obtenerTareas(req, res))
 router.get('/filtrar/:estado', (req: Request, res: Response) => filtrarTareas(req, res))
 router.get('/:id', (req: Request, res: Response) => obtenerTareaPorId(req, res))
-router.post('/', (req: Request, res: Response) => crearTarea(req, res))
-router.patch('/:id/completar', (req: Request, res: Response) => completarTarea(req, res))
+
+// Rutas protegidas — requieren token
+router.post('/', verificarToken, (req: Request, res: Response) => crearTarea(req, res))
+router.patch('/:id/completar', verificarToken, (req: Request, res: Response) => completarTarea(req, res))
 
 export default router

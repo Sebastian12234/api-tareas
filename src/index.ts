@@ -1,6 +1,7 @@
 import express, { Request, Response } from 'express'
 import dotenv from 'dotenv'
 import tareasRoutes from './routes/tareasRoutes'
+import authRoutes from './routes/authRoutes'
 
 dotenv.config()
 
@@ -13,13 +14,9 @@ app.get('/', (req: Request, res: Response) => {
   res.json({ mensaje: 'API de Tareas funcionando ✅' })
 })
 
+app.use('/auth', authRoutes)
 app.use('/tareas', tareasRoutes)
 
 app.listen(PORT, () => {
   console.log(`Servidor corriendo en http://localhost:${PORT}`)
 })
-app.use('/tareas', (req, res, next) => {
-  console.log('📥 Petición llegando a /tareas:', req.method, req.url)
-  next()
-})
-app.use('/tareas', tareasRoutes)
