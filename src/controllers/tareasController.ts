@@ -1,56 +1,96 @@
-// Base de datos temporal en memoria (luego conectamos PostgreSQL)
-let tareas = [
-  { id: 1, titulo: 'Diseñar base de datos', estado: 'pendiente', asignado: 'Sebastian' },
-  { id: 2, titulo: 'Crear endpoints', estado: 'pendiente', asignado: 'Sebastian' },
-  { id: 3, titulo: 'Documentar API', estado: 'completada', asignado: 'Sebastian' }
-]
+import pool from '../database'
 
-// GET /tareas - obtener todas las tareas
-export const obtenerTareas = (req: any, res: any) => {
-  res.json({ ok: true, datos: tareas })
+// GET /tareas
+export const obtenerTareas = async (req: any, res: any) => {
+    console.log('🔍 Consultando PostgreSQL...')
+  try {
+    const resultado = await pool.query(`
+      SELECT t.*, u.nombre as asignado_nombre 
+      FROM tareas t
+      LEFT JOIN usuarios u ON t.asignado_a = u.id
+      ORDER BY t.created_at DESC
+    `)
+    res.json({ ok: true, datos: resultado.rows })
+  } catch (error) {
+    res.status(500).json({ ok: false, mensaje: 'Error al obtener tareas' })
+  }
 }
 
-// GET /tareas/:id - obtener una tarea por id
-export const obtenerTareaPorId = (req: any, res: any) => {
-  const tarea = tareas.find(t => t.id === parseInt(req.params.id))
-  if (!tarea) {
-    return res.status(404).json({ ok: false, mensaje: 'Tarea no encontrada' })
+// GET /tareas/:id
+export const obtenerTareaPorId = async (req: any, res: any) => {
+  try {
+    const { id } = req.params
+    const resultado = await pool.query(`
+      SELECT t.*, u.nombre as asignado_nombre 
+      FROM tareas t
+      LEFT JOIN usuarios u ON t.asignado_a = u.id
+      WHERE t.id = $1
+    `, [id])
+    if (resultado.rows.length === 0) {
+      return res.status(404).json({ ok: false, mensaje: 'Tarea no encontrada' })
+    }
+    res.json({ ok: true, datos: resultado.rows[0] })
+  } catch (error) {
+    res.status(500).json({ ok: false, mensaje: 'Error al obtener tarea' })
   }
-  res.json({ ok: true, datos: tarea })
 }
 
-// POST /tareas - crear una tarea
-export const crearTarea = (req: any, res: any) => {
-  const { titulo, asignado } = req.body
-  if (!titulo || !asignado) {
-    return res.status(400).json({ ok: false, mensaje: 'titulo y asignado son requeridos' })
+// POST /tareas
+export const crearTarea = async (req: any, res: any) => {
+  try {
+    const { titulo, descripcion, asignado_a, creado_por } = req.body
+    if (!titulo || !asignado_a || !creado_por) {
+      return res.status(400).json({ 
+        ok: false, 
+        mensaje: 'titulo, asignado_a y creado_por son requeridos' 
+      })
+    }
+    const resultado = await pool.query(`
+      INSERT INTO tareas (titulo, descripcion, asignado_a, creado_por)
+      VALUES ($1, $2, $3, $4)
+      RETURNING *
+    `, [titulo, descripcion, asignado_a, creado_por])
+    res.status(201).json({ ok: true, datos: resultado.rows[0] })
+  } catch (error) {
+    res.status(500).json({ ok: false, mensaje: 'Error al crear tarea' })
   }
-  const nuevaTarea = {
-    id: tareas.length + 1,
-    titulo,
-    estado: 'pendiente',
-    asignado
-  }
-  tareas.push(nuevaTarea)
-  res.status(201).json({ ok: true, datos: nuevaTarea })
 }
 
-// PATCH /tareas/:id/completar - marcar tarea como completada
-export const completarTarea = (req: any, res: any) => {
-  const tarea = tareas.find(t => t.id === parseInt(req.params.id))
-  if (!tarea) {
-    return res.status(404).json({ ok: false, mensaje: 'Tarea no encontrada' })
+// PATCH /tareas/:id/completar
+export const completarTarea = async (req: any, res: any) => {
+  try {
+    const { id } = req.params
+    const tarea = await pool.query('SELECT * FROM tareas WHERE id = $1', [id])
+    if (tarea.rows.length === 0) {
+      return res.status(404).json({ ok: false, mensaje: 'Tarea no encontrada' })
+    }
+    if (tarea.rows[0].estado === 'completada') {
+      return res.status(400).json({ ok: false, mensaje: 'Esta tarea ya fue completada' })
+    }
+    const resultado = await pool.query(`
+      UPDATE tareas 
+      SET estado = 'completada', fecha_completada = NOW()
+      WHERE id = $1
+      RETURNING *
+    `, [id])
+    res.json({ ok: true, datos: resultado.rows[0] })
+  } catch (error) {
+    res.status(500).json({ ok: false, mensaje: 'Error al completar tarea' })
   }
-  if (tarea.estado === 'completada') {
-    return res.status(400).json({ ok: false, mensaje: 'Esta tarea ya fue completada' })
-  }
-  tarea.estado = 'completada'
-  res.json({ ok: true, datos: tarea })
 }
 
-// GET /tareas/filtrar/:estado - filtrar por estado
-export const filtrarTareas = (req: any, res: any) => {
-  const { estado } = req.params
-  const resultado = tareas.filter(t => t.estado === estado)
-  res.json({ ok: true, datos: resultado, total: resultado.length })
+// GET /tareas/filtrar/:estado
+export const filtrarTareas = async (req: any, res: any) => {
+  try {
+    const { estado } = req.params
+    const resultado = await pool.query(`
+      SELECT t.*, u.nombre as asignado_nombre 
+      FROM tareas t
+      LEFT JOIN usuarios u ON t.asignado_a = u.id
+      WHERE t.estado = $1
+    `, [estado])
+    res.json({ ok: true, datos: resultado.rows, total: resultado.rows.length })
+  } catch (error) {
+    res.status(500).json({ ok: false, mensaje: 'Error al filtrar tareas' })
+  }
 }

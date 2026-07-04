@@ -18,3 +18,8 @@ app.use('/tareas', tareasRoutes)
 app.listen(PORT, () => {
   console.log(`Servidor corriendo en http://localhost:${PORT}`)
 })
+app.use('/tareas', (req, res, next) => {
+  console.log('📥 Petición llegando a /tareas:', req.method, req.url)
+  next()
+})
+app.use('/tareas', tareasRoutes)
